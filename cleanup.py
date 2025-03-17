@@ -127,7 +127,7 @@ def collect_performance_metrics(stack_name):
 
 def main():
     parser = argparse.ArgumentParser(description='Cleanup AWS resources and collect performance metrics')
-    parser.add_argument('--stack-name', default='real-time-pipeline', help='CloudFormation stack name')
+    parser.add_argument('--stack-name', default='data-processing', help='CloudFormation stack name')
     parser.add_argument('--metrics-only', action='store_true', help='Only collect metrics, do not delete stack')
     
     args = parser.parse_args()

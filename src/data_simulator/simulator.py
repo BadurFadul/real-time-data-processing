@@ -42,23 +42,30 @@ def simulate_sensors(stream_name, num_sensors=5, interval=0.2, duration=300):
         interval: Time between data points (seconds)
         duration: Total duration of simulation (seconds)
     """
+    global running
+    
+    # Initialize Kinesis client
     kinesis_client = boto3.client('kinesis')
     
-    # Create sensor IDs
-    sensor_ids = [f"sensor-{uuid.uuid4()}" for _ in range(num_sensors)]
+    # Generate sensor IDs
+    sensor_ids = [f"sensor-{i+1}" for i in range(num_sensors)]
     
+    # Track metrics
     start_time = time.time()
     total_records = 0
     
-    print(f"Starting simulation with {num_sensors} sensors for {duration} seconds")
-    print(f"Sending data to Kinesis stream: {stream_name}")
-    
     try:
-        # Continue until duration is reached or interrupted
+        print(f"Starting simulation with {num_sensors} sensors for {duration} seconds")
+        print(f"Sending data to Kinesis stream: {stream_name}")
+        
+        # Run until duration is reached or interrupted
         while running and (time.time() - start_time) < duration:
+            # Generate and send data for each sensor
             for sensor_id in sensor_ids:
-                # Generate and send data for each sensor
+                # Generate random sensor data
                 data = generate_sensor_data(sensor_id)
+                
+                # Send to Kinesis
                 send_to_kinesis(kinesis_client, stream_name, data, sensor_id)
                 total_records += 1
                 

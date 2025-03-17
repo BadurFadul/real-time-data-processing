@@ -35,4 +35,3 @@ var/
 
 # AWS credentials
 .aws/
-EOL

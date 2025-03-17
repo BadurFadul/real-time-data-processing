@@ -60,6 +60,7 @@ Resources:
             StartingPosition: LATEST
             BatchSize: 100
             MaximumBatchingWindowInSeconds: 1
+      Timeout: 30
 
   # CloudWatch Dashboard for metrics
   PerformanceDashboard:
