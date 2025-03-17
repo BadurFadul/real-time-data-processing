@@ -1,0 +1,138 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Real-time data processing pipeline with AWS Lambda and Kinesis
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 128
+    Runtime: python3.9
+    Architectures:
+      - x86_64
+
+Resources:
+  # Kinesis Data Stream for ingesting sensor data
+  SensorDataStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      ShardCount: 1
+      RetentionPeriodHours: 24
+      StreamModeDetails:
+        StreamMode: PROVISIONED
+
+  # DynamoDB table for storing processed data
+  ProcessedDataTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      StreamSpecification:
+        StreamViewType: NEW_IMAGE
+
+  # Lambda function for processing data
+  DataProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/data_processor/
+      Handler: app.lambda_handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProcessedDataTable
+        - KinesisStreamReadPolicy:
+            StreamName: !Ref SensorDataStream
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ProcessedDataTable
+      Events:
+        Stream:
+          Type: Kinesis
+          Properties:
+            Stream: !GetAtt SensorDataStream.Arn
+            StartingPosition: LATEST
+            BatchSize: 100
+            MaximumBatchingWindowInSeconds: 1
+
+  # CloudWatch Dashboard for metrics
+  PerformanceDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub "${AWS::StackName}-metrics"
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/Lambda", "Invocations", "FunctionName", "${DataProcessorFunction}" ],
+                  [ ".", "Errors", ".", "." ],
+                  [ ".", "Duration", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "period": 60,
+                "stat": "Sum",
+                "title": "Lambda Metrics"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 6,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/Kinesis", "IncomingRecords", "StreamName", "${SensorDataStream}" ],
+                  [ ".", "GetRecords.IteratorAgeMilliseconds", ".", "." ],
+                  [ ".", "ReadProvisionedThroughputExceeded", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "period": 60,
+                "stat": "Sum",
+                "title": "Kinesis Metrics"
+              }
+            }
+          ]
+        }
+
+Outputs:
+  DataProcessorFunction:
+    Description: "Data Processor Lambda Function ARN"
+    Value: !GetAtt DataProcessorFunction.Arn
+
+  SensorDataStream:
+    Description: "Kinesis Data Stream ARN"
+    Value: !GetAtt SensorDataStream.Arn
+    
+  SensorDataStreamName:
+    Description: "Kinesis Data Stream Name"
+    Value: !Ref SensorDataStream
+
+  ProcessedDataTable:
+    Description: "DynamoDB Table ARN"
+    Value: !GetAtt ProcessedDataTable.Arn
+    
+  ProcessedDataTableName:
+    Description: "DynamoDB Table Name"
+    Value: !Ref ProcessedDataTable
+    
+  PerformanceDashboard:
+    Description: "CloudWatch Dashboard URL"
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${PerformanceDashboard}" 
